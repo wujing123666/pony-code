@@ -469,7 +469,9 @@ def test_distribution_verifier_freezes_archive_and_install_contract():
         'metadata.get_all("Requires-Dist") == EXPECTED_RUNTIME_REQUIREMENTS'
         in verifier
     )
-    assert 'EXPECTED_RUNTIME_REQUIREMENTS = ["prompt-toolkit<4,>=3.0.52"]' in verifier
+    assert '"prompt-toolkit<4,>=3.0.52"' in verifier
+    assert '"mcp<3,>=2.2; extra == \'github-mcp\'"' in verifier
+    assert 'EXPECTED_OPTIONAL_EXTRAS = ["github-mcp"]' in verifier
     assert 'metadata["License-Expression"] == "MIT"' in verifier
     assert 'installed_version == f"pony {PROJECT_VERSION}"' in verifier
     assert 'shutil.which(pony.name, path=env["PATH"])' in verifier

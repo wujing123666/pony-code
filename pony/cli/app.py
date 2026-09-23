@@ -9,6 +9,7 @@ from difflib import get_close_matches
 import sys
 
 from pony.config.model import DEFAULT_MODEL
+from pony.mcp.github_client import GitHubMCPError
 from pony.providers.transport import ProviderTransportError
 from pony.security.redaction import redact_artifact, redact_text
 from pony.tools import registry as toolkit
@@ -44,6 +45,15 @@ from .output import error_envelope, format_json, print_result
 from .parser import KNOWN_TOP_LEVEL_COMMANDS, parse_cli_invocation
 from .recovery import handle_checkpoints, handle_runs, handle_sessions
 from .start import run_agent_once, run_repl
+
+
+def _close_agent(agent):
+    close = getattr(agent, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception:  # noqa: BLE001 - cleanup cannot replace the primary result
+            pass
 
 
 def _handle_recovery_command(cwd, tokens, args):
@@ -164,6 +174,26 @@ def _dispatch_pre_agent_command(invocation, args):
 def _validate_agent_command(invocation):
     args = invocation.runtime_args
     agent_command = invocation.command in {"run", "repl"}
+    github_server = getattr(args, "github_mcp_server", None)
+    github_repo = getattr(args, "github_repo", None)
+    github_requested = github_server is not None or github_repo is not None
+    if github_requested and (not github_server or not github_repo or not agent_command):
+        raise CliError(
+            code="usage",
+            message="GitHub MCP requires both flags with `pony run` or `pony repl`",
+            exit_code=CLI_EXIT_USAGE,
+        )
+    if github_repo:
+        from pony.mcp.github_client import validate_github_repo
+
+        try:
+            validate_github_repo(github_repo)
+        except ValueError:
+            raise CliError(
+                code="github_mcp_repo_invalid",
+                message="Invalid GitHub repository; expected OWNER/REPO",
+                exit_code=CLI_EXIT_USAGE,
+            ) from None
     if getattr(args, "stream", False):
         if invocation.command != "repl":
             raise CliError(
@@ -345,6 +375,8 @@ def main(argv=None):
     parser = build_arg_parser()
     invocation = parse_cli_invocation(argv, parser)
     args = invocation.runtime_args
+    agent = None
+    startup_complete = False
     try:
         _raise_on_unknown_command(invocation)
         permission_rule_updates = _validate_agent_command(invocation)
@@ -379,8 +411,14 @@ def main(argv=None):
                     mode=permission_mode,
                     rule_updates=permission_rule_updates,
                 )
+        startup_complete = True
     except CliError as exc:
         return _print_cli_error(args, exc)
+    except GitHubMCPError as exc:
+        return _print_cli_error(
+            args,
+            CliError(code=exc.code, message=exc.code, exit_code=CLI_EXIT_CONFIG),
+        )
     except ProviderTransportError as exc:
         return _print_cli_error(
             args,
@@ -415,6 +453,8 @@ def main(argv=None):
             "provider_invalid",
             "streaming_unavailable",
             "tool_result_budget_too_small",
+            "github_mcp_server_invalid",
+            "github_mcp_configuration_invalid",
         }
         if reason in stable_codes:
             message = {
@@ -456,6 +496,9 @@ def main(argv=None):
         )
     except Exception:  # noqa: BLE001 - preserve KeyboardInterrupt/SystemExit
         return _print_startup_error(args)
+    finally:
+        if agent is not None and not startup_complete:
+            _close_agent(agent)
 
     try:
         transport = getattr(agent.model_client, "_inner", agent.model_client)
@@ -483,3 +526,5 @@ def main(argv=None):
         )
     except Exception:  # noqa: BLE001 - contain ordinary CLI runtime failures
         return _print_startup_error(args)
+    finally:
+        _close_agent(agent)

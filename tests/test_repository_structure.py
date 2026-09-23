@@ -33,6 +33,7 @@ MAINTAINER_DOCS = {
     "docs/adr/0050-windows-native-support.md",
     "docs/adr/0051-model-compatibility-contract.md",
     "docs/adr/0052-safe-streaming-preview.md",
+    "docs/adr/0053-github-mcp-readonly.md",
     "docs/context-and-sessions.md",
     "docs/model-target-and-budget-design.md",
 }
@@ -375,6 +376,8 @@ def test_maintainer_doc_links_and_cli_examples_resolve():
         "--dangerously-skip-permissions",
         "--disallowed-tools",
         "--format",
+        "--github-mcp-server",
+        "--github-repo",
         "--help",
         "--model",
         "--permission-mode",

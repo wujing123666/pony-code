@@ -25,7 +25,11 @@ DIST_INFO_NAME = PROJECT_NAME.replace("-", "_")
 PROJECT_VERSION = _PROJECT["version"]
 PROJECT_SUMMARY = _PROJECT["description"]
 EXPECTED_REQUIRES_PYTHON = "<3.13,>=3.11"
-EXPECTED_RUNTIME_REQUIREMENTS = ["prompt-toolkit<4,>=3.0.52"]
+EXPECTED_RUNTIME_REQUIREMENTS = [
+    "prompt-toolkit<4,>=3.0.52",
+    "mcp<3,>=2.2; extra == 'github-mcp'",
+]
+EXPECTED_OPTIONAL_EXTRAS = ["github-mcp"]
 DIST_INFO_FILES = {
     "METADATA",
     "RECORD",
@@ -156,6 +160,7 @@ def verify_wheel(wheel: Path, tracked_package_files: set[str], readme: str) -> N
         "Source, https://github.com/xiawiie/pony-code",
     ]
     assert metadata.get_all("Requires-Dist") == EXPECTED_RUNTIME_REQUIREMENTS
+    assert metadata.get_all("Provides-Extra") == EXPECTED_OPTIONAL_EXTRAS
     assert metadata_body.decode("utf-8").strip() == readme.strip()
     assert entry_points == "[console_scripts]\npony = pony.cli.app:main\n"
     assert wheel_metadata["Root-Is-Purelib"] == "true"
@@ -240,7 +245,7 @@ def install_smoke(wheel: Path, *, offline: bool = False) -> None:
             str(python),
             "-c",
             "import importlib.metadata as m; "
-            "assert m.requires('pony-code') == ['prompt-toolkit<4,>=3.0.52']",
+            f"assert m.requires('pony-code') == {EXPECTED_RUNTIME_REQUIREMENTS!r}",
             cwd=cwd,
             env=env,
         )

@@ -23,6 +23,7 @@ class ToolContext:
     workspace_root_identity: Optional[tuple[int, int]] = None
     spawn_worktree_agents: Optional[Callable[[dict], str]] = None
     read_current_tool_result: Optional[Callable[[str], str]] = None
+    github_mcp_client: Optional[Any] = None
 
     def __post_init__(self):
         self.trusted_executables = MappingProxyType(dict(self.trusted_executables))

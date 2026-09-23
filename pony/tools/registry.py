@@ -12,6 +12,12 @@ from pony.memory.tools import (
     tool_memory_search,
 )
 from .files import tool_list_files, tool_patch_file, tool_read_file, tool_write_file
+from .github import (
+    GITHUB_TOOL_SPECS,
+    tool_github_read_file,
+    tool_github_read_issue,
+    tool_github_read_pr,
+)
 from .result_view import ResultPagePolicy, page_text
 from .search import tool_search
 from .shell import DEFAULT_RUN_SHELL_TIMEOUT, _tool_run_shell
@@ -237,7 +243,7 @@ PLAN_TOOL_SPECS = {
 
 
 def legal_tool_names():
-    return set(BASE_TOOL_SPECS) | set(PLAN_TOOL_SPECS) | {
+    return set(BASE_TOOL_SPECS) | set(GITHUB_TOOL_SPECS) | set(PLAN_TOOL_SPECS) | {
         "delegate",
         "delegate_worktrees",
     }
@@ -265,6 +271,9 @@ TOOL_EXAMPLES = {
     "memory_search": '{"name":"memory_search","arguments":{"query":"bcrypt","limit":5}}',
     "memory_save": '{"name":"memory_save","arguments":{"note":"bcrypt rounds > 12 causes CI timeout"}}',
     "repo_lookup": '{"name":"repo_lookup","arguments":{"symbol":"AuthMiddleware"}}',
+    "github_read_pr": '{"name":"github_read_pr","arguments":{"number":12,"view":"checks"}}',
+    "github_read_issue": '{"name":"github_read_issue","arguments":{"number":12}}',
+    "github_read_file": '{"name":"github_read_file","arguments":{"path":"README.md"}}',
     "read_plan": '{"name":"read_plan","arguments":{}}',
     "write_plan": '{"name":"write_plan","arguments":{"plan":"# Plan\\n1. Inspect\\n2. Implement\\n3. Test"}}',
     "exit_plan_mode": '{"name":"exit_plan_mode","arguments":{}}',
@@ -342,6 +351,18 @@ def build_tool_registry(context):
         name: {**spec, "run": partial(_TOOL_RUNNERS[name], context)}
         for name, spec in BASE_TOOL_SPECS.items()
     }
+    if getattr(context, "github_mcp_client", None) is not None:
+        github_runners = {
+            "github_read_pr": tool_github_read_pr,
+            "github_read_issue": tool_github_read_issue,
+            "github_read_file": tool_github_read_file,
+        }
+        tools.update(
+            {
+                name: {**spec, "run": partial(github_runners[name], context)}
+                for name, spec in GITHUB_TOOL_SPECS.items()
+            }
+        )
     trusted_names = _available_shell_executable_names(context)
     availability = ", ".join(trusted_names) if trusted_names else "none"
     tools["run_shell"]["description"] = (

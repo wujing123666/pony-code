@@ -294,6 +294,13 @@ active turn 而不声称取消 Provider/Tool。approval/wake 异常必须 deny �
 Session ID、API Base 或 checkpoint ID。runtime hook 恢复、durable trace 顺序、
 permission prompt 参数脱敏与 prompt fail closed 仍是阻断项；离线 contract 不得描述为 Provider reasoning 或 streaming 验证。
 
+GitHub MCP 的聚焦入口是 `tests/test_github_tools.py`、`tests/test_github_runtime.py` 与
+`tests/test_github_mcp_client.py`。离线门禁覆盖 opt-in 工具注册、参数/敏感路径拒绝、指定仓库绑定、
+`ToolExecutor` 成功与失败状态、令牌脱敏、超大/不支持的结果、嵌入文本资源和 SDK stdio 往返。无可选依赖时，默认 CLI
+仍可导入运行；带 `github-mcp` extra 时执行 stdio 合同。实机检查必须区分：校验官方发布包哈希后的
+Server `tools/list`/关闭测试，以及使用用户令牌的真实 GitHub API 读取；前者不证明后者。真实 Provider
+请求另属 G8，不得用 MCP 合成往返代替。
+
 Model/Provider 回归还必须覆盖：任意 model id 零 warning 和 128K/16K 默认；256K/32K 显式 profile；32K/16K 自动
 compaction turn；非法 TOML 组合在 runtime 构造前回退；default/project/CLI/mixed source 在 delegate/worktree 中不漂移；
 OpenAI nested strict schema、default 清理与 unsupported composition 拒绝；generic compatible Chat `max_tokens` 与官方 Chat

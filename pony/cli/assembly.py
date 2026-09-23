@@ -18,7 +18,8 @@ from pony.runtime.application import (
     _build_redaction_snapshot,
     _session_requires_bypass_permission_capability,
 )
-from pony.runtime.options import RuntimeOptions, require_streaming_client
+from pony.runtime.options import GitHubMCPSettings, RuntimeOptions, require_streaming_client
+from pony.mcp.github_client import GITHUB_TOKEN_ENV_NAME
 from pony.runtime.legacy import (
     LegacySandboxResumeError,
     preflight_legacy_sandbox_resume,
@@ -239,11 +240,19 @@ def _build_agent(args, source_workspace):
     project_env = read_project_env(source_workspace.repo_root, warn=True)
     redaction_env, configured_secret_names, redactor = _build_redaction_snapshot(
         source_workspace.repo_root,
-        secret_env_names=getattr(args, "secret_env_names", ()),
+        secret_env_names=(
+            *getattr(args, "secret_env_names", ()),
+            *((GITHUB_TOKEN_ENV_NAME,) if getattr(args, "github_mcp_server", None) else ()),
+        ),
         process_env=process_env,
         project_env=project_env,
     )
     project_config = load_pony_toml(source_workspace.repo_root)
+    github_mcp = (
+        GitHubMCPSettings(args.github_mcp_server, args.github_repo)
+        if getattr(args, "github_mcp_server", None)
+        else None
+    )
     session_store_root = source_workspace.repo_root + "/.pony/sessions"
     store = None
     session_id = args.resume
@@ -345,10 +354,15 @@ def _build_agent(args, source_workspace):
                 trusted_redaction_env=True,
                 project_config=project_config,
                 allow_dangerously_skip_permissions=dangerous_bypass_enabled(args),
+                github_mcp=github_mcp,
             ),
         )
         if getattr(args, "model", None) is not None:
-            agent.set_model(args.model)
+            try:
+                agent.set_model(args.model)
+            except Exception:
+                agent.close()
+                raise
         return agent
     return Pony(
         model_client=model,
@@ -368,5 +382,6 @@ def _build_agent(args, source_workspace):
             project_config=project_config,
             session_id=session_id,
             allow_dangerously_skip_permissions=dangerous_bypass_enabled(args),
+            github_mcp=github_mcp,
         ),
     )
