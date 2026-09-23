@@ -104,6 +104,18 @@ def build_arg_parser():
     parser.add_argument("prompt", nargs="*", help="Command and arguments.")
     parser.add_argument("--cwd", default=".", help="Workspace directory.")
     parser.add_argument(
+        "--github-mcp-server",
+        default=None,
+        metavar="ABSOLUTE_PATH",
+        help="Enable read-only GitHub MCP using this local server executable.",
+    )
+    parser.add_argument(
+        "--github-repo",
+        default=None,
+        metavar="OWNER/REPO",
+        help="The one GitHub repository the MCP tools may read.",
+    )
+    parser.add_argument(
         "--request-timeout-seconds",
         type=_request_timeout_argument,
         default=300,

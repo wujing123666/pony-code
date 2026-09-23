@@ -71,6 +71,19 @@ Pony 构造运行时时冻结 redaction snapshot。已知 secret 在写入 Sessi
 自动识别不等于绝对数据防泄漏：未知、编码后、模型生成或工具新产生的 secret 可能进入仓库、命令输出或本地 artifact。
 不要声称 Pony 能发现所有 secret，或 Host 执行能隔离恶意命令。
 
+## 可选 GitHub MCP 边界
+
+只有 `run/repl` 同时收到 Server 可执行程序绝对路径和 `owner/repo` 时，Pony 才启动 GitHub MCP。程序须在当前
+仓库外，不能经符号链接解析；它仍是由用户选择、以 Host 权限运行的外部程序。令牌从当前仓库的私有 `.env`
+或进程环境变量 `GITHUB_PERSONAL_ACCESS_TOKEN` 取得，项目值优先，并加入运行时脱敏名单。子进程不继承任意项目配置中的命令、工具列表或
+凭证；Server 启动时固定为三个读取工具与只读模式。Pony 自身再次固定仓库和参数，拒绝敏感远程文件路径。
+远程结果大小有上限，错误状态、非文本内容和连接失败不能进入成功路径。
+
+仅限定工具参数不能限制一个过度授权令牌的实际权限；应使用仅能读取目标仓库的 fine-grained token。
+GitHub 私有内容返回后可能进入已配置的模型 Provider，也可能按既有 Run 机制保留脱敏的大结果。远程
+PR/Issue/文件内容属于不可信输入，不能改变 Pony 的权限规则。完整威胁模型见
+[ADR-0053](adr/0053-github-mcp-readonly.md)。
+
 ## Injection 与 Memory
 
 `InjectionSnapshot` 由结构化 source blocks 构建，仓库文本中的伪 marker 不能改变边界。同一 top-level turn 的 retry 和

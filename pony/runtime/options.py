@@ -5,6 +5,12 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class GitHubMCPSettings:
+    server_path: str
+    repo: str
+
+
+@dataclass(frozen=True)
 class RuntimeOptions:
     model_client_factory: Any = None
     delegate_model_client_factory: Any = None
@@ -27,6 +33,7 @@ class RuntimeOptions:
     trusted_executables: dict[str, str] | None = None
     project_config: dict[str, Any] | None = None
     session_id: str | None = None
+    github_mcp: GitHubMCPSettings | None = None
 
 
 def require_streaming_client(model_client):

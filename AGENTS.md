@@ -121,13 +121,14 @@ CLI/TUI 合同：
 
 `openai` 是 Chat/Responses family selector，不是最终 Session binding 或 init 持久化值。
 
-唯一用户配置面是仓库根目录 `.env` 中最多四个变量：
+唯一用户配置面是仓库根目录 `.env` 中的四个 Provider 变量，以及显式启用 GitHub MCP 时的可选令牌：
 
 ```text
 PONY_PROVIDER
 PONY_API_BASE
 PONY_API_KEY
 PONY_MODEL
+GITHUB_PERSONAL_ACCESS_TOKEN
 ```
 
 必须保持：
@@ -135,6 +136,7 @@ PONY_MODEL
 - 运行须配置 API Base/model；Provider 可缺失、为空或为 `auto`。云端须有 Key，本地 Ollama 可空。`pony init`
   只写这四项，并在 auto/OpenAI-family resolution 完整通过后写 resolved Provider。
 - lexical repository root 的 `.env` 高于同名进程变量；不搜索父目录、不修改全局 `os.environ`。
+- `GITHUB_PERSONAL_ACCESS_TOKEN` 只在显式启用 GitHub MCP 时提供只读连接凭证；`pony init` 仍只写四个 Provider 变量。
 - 不读取厂商 Key、旧 Provider/Profile/Connection/Variant/Auth 字段或旧 Pony 变量作为 fallback。
 - 强制 Provider 静态决定 Variant 与 Auth；auto/OpenAI-family 可在发送用户任务前执行 bounded synthetic resolution。
   普通 config/status/doctor 零网络，`doctor --check-api` 零写，真实用户任务失败后绝不切换协议重放。

@@ -3,6 +3,8 @@ from types import SimpleNamespace
 import pytest
 
 from pony.cli.app import build_arg_parser
+from pony.cli.app import _validate_agent_command
+from pony.cli.errors import CliError
 from pony.cli.parser import KNOWN_TOP_LEVEL_COMMANDS, parse_cli_invocation
 from pony.runtime.application import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_MAX_STEPS
 
@@ -45,6 +47,40 @@ def test_parse_model_override_for_agent_commands():
     )
 
     assert invocation.runtime_args.model == "claude-sonnet-4-6"
+
+
+def test_parse_github_mcp_requires_both_flags_for_agent_command():
+    invocation = parse_cli_invocation(
+        [
+            "--github-mcp-server",
+            "C:/tools/github-mcp-server.exe",
+            "--github-repo",
+            "wujing123666/pony-code",
+            "run",
+            "read",
+            "PR",
+            "12",
+        ],
+        build_arg_parser(),
+    )
+    assert invocation.runtime_args.github_repo == "wujing123666/pony-code"
+    _validate_agent_command(invocation)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    (
+        ["--github-mcp-server", "C:/tools/server.exe", "run", "read"],
+        ["--github-repo", "owner/repo", "run", "read"],
+        ["--github-mcp-server", "", "--github-repo", "owner/repo", "run", "read"],
+        ["--github-mcp-server", "C:/tools/server.exe", "--github-repo", "owner/repo", "doctor"],
+        ["--github-mcp-server", "C:/tools/server.exe", "--github-repo", "bad", "run", "read"],
+    ),
+)
+def test_github_mcp_flags_reject_invalid_scope(argv):
+    invocation = parse_cli_invocation(argv, build_arg_parser())
+    with pytest.raises(CliError):
+        _validate_agent_command(invocation)
 
 
 @pytest.mark.parametrize("model", ("", " bad", "bad\nmodel"))

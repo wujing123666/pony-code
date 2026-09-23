@@ -156,6 +156,15 @@ flowchart LR
 [ADR-0050](adr/0050-windows-native-support.md) 冻结：上层合同不变，Windows 以原生文件、锁、进程树和 PowerShell
 安全原语替换 POSIX backend，不依赖 POSIX 兼容层；无法满足安全等价前置时仍 fail closed。
 
+### 可选 GitHub MCP 读取路径
+
+显式启用时，`RuntimeOptions` 提供目标仓库与本地 Server 路径；Pony 在建立模型可见工具表之前完成 MCP
+连接和 `tools/list` 校验。静态注册的 `github_read_pr`、`github_read_issue`、`github_read_file` 仍产生普通
+`ToolAction`，经过同一个 `ToolExecutor`，其 runner 再通过长期存活的 MCP stdio 连接调用官方 Server。
+结果转换为普通 Pony 工具结果后回到 Agent Loop；MCP 错误不会冒充成功。关闭 CLI 时关闭连接和子进程。
+服务器只暴露这三种读取能力，且启用只读模式；每次运行只允许一个明确指定的 GitHub 仓库。见
+[ADR-0053](adr/0053-github-mcp-readonly.md)。
+
 ## 状态、上下文与恢复
 
 ```mermaid

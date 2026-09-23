@@ -62,6 +62,7 @@ mindmap
 | 使用项目规范 | 显式读取受信 `.claude/skills/<name>/SKILL.md`，仅作为当前 turn 的只读上下文 |
 | 并行处理任务 | 在隔离 Git worktree 中创建 child；审查后显式 `merge` 或有序 `merge-all` |
 | 切换模型或 Provider | 用单一 `.env` 配置；协议/endpoint 明确绑定，真实任务失败不 fallback |
+| 读取 GitHub 信息 | 可选只读 MCP 连接读取指定仓库的 PR、Issue 和文件 |
 | 使用新型号 | 任意合法 model id 零登记进入既有协议；不查 catalog、不显示 unknown warning |
 
 ## 一次任务如何运行
@@ -142,6 +143,27 @@ error，不会静默进入纯文本或缩小版界面；112 列及以上只显�
 REPL。
 `pony run` 不显示装饰性 banner。`pony --stream`（等价于 `pony --stream repl`）只在完整交互 TUI 中启用安全文本
 preview；默认交互、one-shot、非 TTY 与管理命令仍使用 final-only。
+
+### 可选：读取 GitHub PR、Issue 和文件
+
+从源码安装可选客户端依赖：`uv sync --frozen --dev --extra github-mcp`。另从
+[GitHub 官方 MCP Server](https://github.com/github/github-mcp-server) 安装本地可执行程序，并校验其发布包哈希。
+在当前仓库根目录的私有 `.env` 中设置 `GITHUB_PERSONAL_ACCESS_TOKEN`，也可使用进程环境变量；
+`.env` 值优先。建议使用仅对目标仓库有读取权限的 fine-grained token。不要把令牌写进命令行或版本控制；
+`.env` 已被 Git 忽略，但仍应限制本机访问和备份范围。启动示例：
+
+```dotenv
+GITHUB_PERSONAL_ACCESS_TOKEN=你的令牌
+```
+
+```text
+pony --github-mcp-server "C:\tools\github-mcp-server.exe" --github-repo wujing123666/pony-code run "查看 PR #12 的检查结果"
+```
+
+路径需为仓库外的绝对程序路径；macOS/Linux 使用本机对应的绝对路径。两个选项必须一起提供，且只适用于
+`run/repl`。Pony 只向模型提供 `github_read_pr`、`github_read_issue`、`github_read_file`，启动的 Server 同时限制为
+这三个读取能力和只读模式。GitHub 返回的内容会经过 Pony 的脱敏与大结果预览，然后可能进入你配置的模型
+Provider。未安装可选依赖、未设置令牌或 Server 不能连接时明确报错。此功能不创建、评论或合并 PR。
 
 ## 配置与 Provider 路由
 

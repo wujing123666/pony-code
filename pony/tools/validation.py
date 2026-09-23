@@ -211,6 +211,12 @@ def _validate_page_arguments(args, *, allowed):
 def validate_tool(context, name, args):
     args = args or {}
 
+    if name in {"github_read_pr", "github_read_issue", "github_read_file"}:
+        from pony.tools.github import validate_github_tool
+
+        validate_github_tool(name, args)
+        return
+
     if name == "list_files":
         path, _ = _lexical_tool_target(context, args.get("path", "."))
         mode = _target_mode(path)

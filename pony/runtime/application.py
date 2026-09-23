@@ -33,6 +33,7 @@ from pony.agent.model_capabilities import (
 )
 from pony.agent.prompt_prefix import build_prompt_prefix, tool_signature
 from pony.memory.repo_map import RepoMap
+from pony.mcp.github_client import GITHUB_TOKEN_ENV_NAME, GitHubMCPClient
 from pony.state.run_store import RunStore
 from pony.agent.observability import REPORT_SCHEMA_VERSION, project_trace_event
 from pony.state.session_store import SESSION_FORMAT_VERSION, SESSION_RECORD_TYPE
@@ -47,7 +48,7 @@ from pony.tools.validation import validate_tool as validate_tool_arguments
 from pony.config.environment import read_project_env
 from pony.config.model import validate_model_name
 from pony.config.project import load_pony_toml
-from pony.runtime.options import RuntimeOptions, require_streaming_client
+from pony.runtime.options import GitHubMCPSettings, RuntimeOptions, require_streaming_client
 from pony.runtime.legacy import preflight_legacy_sandbox_resume
 from pony.runtime.reporting import build_report_request_metadata
 from pony.runtime.working_memory import WorkingMemory
@@ -253,8 +254,15 @@ class Pony:
         self._configure_recovery_services(redactor)
         self._configure_project_model(options)
         self._configure_session(session, model_binding, options.session_id)
-        self._configure_memory_and_tools()
-        self._persist_initialized_session()
+        try:
+            self._configure_memory_and_tools()
+            self._persist_initialized_session()
+        except BaseException:
+            try:
+                self.close()
+            except Exception:  # noqa: BLE001 - preserve the construction failure
+                pass
+            raise
         self._reset_turn_state()
 
     def _configure_workspace(self, workspace, options):
@@ -290,21 +298,45 @@ class Pony:
         self.depth = options.depth
         self.max_depth = options.max_depth
         self.read_only = options.read_only
+        if options.github_mcp is not None and (
+            not isinstance(options.github_mcp, GitHubMCPSettings) or self.depth != 0
+        ):
+            raise ValueError("github_mcp_configuration_invalid")
+        self.github_mcp_settings = options.github_mcp
+        self.github_mcp_client = None
         self._bypass_permissions_available = (
             options.allow_dangerously_skip_permissions is True
         )
         self.shell_env_allowlist = tuple(
             options.shell_env_allowlist or DEFAULT_SHELL_ENV_ALLOWLIST
         )
+        secret_names = tuple(options.secret_env_names or ())
+        if options.github_mcp is not None:
+            secret_names += (GITHUB_TOKEN_ENV_NAME,)
         if options.redaction_env is None:
             redaction_env, configured_names, _ = _build_redaction_snapshot(
                 self.source_root,
-                secret_env_names=options.secret_env_names,
+                secret_env_names=secret_names,
             )
         else:
+            snapshot_source = options.redaction_env
+            if options.github_mcp is not None:
+                token = os.environ.get(GITHUB_TOKEN_ENV_NAME)
+                if token:
+                    snapshot_source = dict(snapshot_source)
+                    if GITHUB_TOKEN_ENV_NAME not in snapshot_source:
+                        snapshot_source[GITHUB_TOKEN_ENV_NAME] = token
+                    elif (
+                        snapshot_source[GITHUB_TOKEN_ENV_NAME] != token
+                        and token not in snapshot_source.values()
+                    ):
+                        collision_name = "PONY_GITHUB_MCP_PROCESS_TOKEN_SECRET"
+                        while collision_name in snapshot_source:
+                            collision_name += "_SECRET"
+                        snapshot_source[collision_name] = token
             redaction_env, configured_names, _ = _freeze_redaction_snapshot(
-                options.redaction_env,
-                options.secret_env_names,
+                snapshot_source,
+                secret_names,
                 trusted=options.trusted_redaction_env,
             )
         self.redaction_env = redaction_env
@@ -524,6 +556,13 @@ class Pony:
         self._sync_working_memory()
 
     def _configure_memory_and_tools(self):
+        if self.github_mcp_settings is not None:
+            self.github_mcp_client = GitHubMCPClient(
+                server_path=self.github_mcp_settings.server_path,
+                repo=self.github_mcp_settings.repo,
+                workspace_root=self.root,
+                token=self.redaction_env.get(GITHUB_TOKEN_ENV_NAME),
+            ).start()
         workspace_memory_root = self.project_state_root / "memory"
         user_memory_root = Path.home() / ".pony" / "memory"
         self.memory_store = BlockStore(
@@ -1480,7 +1519,14 @@ class Pony:
             secret_env_names=self.secret_env_names,
             workspace_root_identity=self.workspace_root_identity,
             read_current_tool_result=self.read_current_tool_result,
+            github_mcp_client=self.github_mcp_client,
         )
+
+    def close(self):
+        client = getattr(self, "github_mcp_client", None)
+        if client is not None:
+            self.github_mcp_client = None
+            client.close()
 
     def spawn_delegate(self, args):
         self.validate_tool("delegate", args)
